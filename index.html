@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Calculadora Dark Azul</title>
+  <meta charset="UTF-8" />
+  <title>Calculadora Dark Azul com Histórico</title>
   <style>
     body {
       margin: 0;
@@ -14,15 +14,16 @@
       font-family: 'Segoe UI', sans-serif;
       color: #fff;
     }
-
     .calculator {
       background: #1e1e1e;
       padding: 20px;
       border-radius: 15px;
       box-shadow: 0 0 20px rgba(0,0,0,0.7);
-      width: 320px;
+      width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
-
     .display {
       background: #000;
       color: #0ff;
@@ -30,157 +31,186 @@
       padding: 15px;
       border-radius: 10px;
       text-align: right;
-      margin-bottom: 20px;
       overflow-x: auto;
+      white-space: nowrap;
     }
-
+    .history-container {
+      background: #111;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #222;
+    }
+    .history {
+      color: #aaa;
+      font-size: 0.95rem;
+      padding: 10px;
+      height: 120px;
+      overflow-y: auto;
+      line-height: 1.4;
+    }
+    .history-controls {
+      display: flex;
+      justify-content: flex-end;
+      padding: 6px 10px;
+      background: #151515;
+      border-top: 1px solid #222;
+    }
+    .history-controls button {
+      background: #444;
+      font-size: 0.85rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
     .buttons {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 10px;
     }
-
     button {
-      padding: 20px;
-      font-size: 1.2rem;
+      padding: 18px;
+      font-size: 1.1rem;
       border: none;
       border-radius: 10px;
       cursor: pointer;
-      background: #0056b3; /* azul escuro padrão */
+      background: #0056b3;
       color: #fff;
       transition: background 0.15s, transform 0.05s;
+      user-select: none;
     }
-
-    button:hover {
-      background: #007bff; /* azul claro no hover */
-    }
-
-    button:active {
-      background: #003d80; /* ainda mais escuro quando pressionado */
+    button:hover { background: #007bff; }
+    button:active, .active-key {
+      background: #003d80 !important;
       transform: scale(0.96);
     }
-
-    .equal {
-      grid-row: span 2;
-      background: #004c99;
-    }
-
-    .equal:hover {
-      background: #339dff;
-    }
-
-    .equal:active {
-      background: #003366;
-    }
-
-    .zero {
-      grid-column: span 2;
-    }
+    .equal { grid-row: span 2; background: #004c99; }
+    .equal:hover { background: #339dff; }
+    .equal:active, .equal.active-key { background: #003366 !important; }
+    .zero { grid-column: span 2; }
   </style>
 </head>
 <body>
   <div class="calculator">
     <div class="display" id="display">0</div>
+    <div class="history-container">
+      <div class="history" id="history"></div>
+      <div class="history-controls">
+        <button id="clearHistory">Limpar Histórico</button>
+      </div>
+    </div>
     <div class="buttons">
       <button id="clear">C</button>
       <button id="backspace">⌫</button>
       <button>%</button>
       <button class="operator">/</button>
-
-      <button>7</button>
-      <button>8</button>
-      <button>9</button>
-      <button class="operator">*</button>
-
-      <button>4</button>
-      <button>5</button>
-      <button>6</button>
-      <button class="operator">-</button>
-
-      <button>1</button>
-      <button>2</button>
-      <button>3</button>
-      <button class="operator">+</button>
-
-      <button class="zero">0</button>
-      <button>.</button>
-      <button class="equal">=</button>
+      <button>7</button><button>8</button><button>9</button><button class="operator">*</button>
+      <button>4</button><button>5</button><button>6</button><button class="operator">-</button>
+      <button>1</button><button>2</button><button>3</button><button class="operator">+</button>
+      <button class="zero">0</button><button>,</button><button class="equal">=</button><button id="sqrt">√</button>
+      <button id="mute">🔇</button>
     </div>
   </div>
 
   <script>
     const display = document.getElementById('display');
+    const historyBox = document.getElementById('history');
     const buttons = document.querySelectorAll('button');
+    let soundEnabled = true;
+
+    // Web Audio API beep
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound() {
+      if (!soundEnabled) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 440;
+      gain.gain.value = 0.1;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.08);
+    }
+
+    function addToHistory(entry) {
+      const div = document.createElement('div');
+      div.textContent = entry;
+      historyBox.prepend(div);
+    }
+
+    function clearDisplay() { display.textContent = '0'; }
+    function backspace() { display.textContent = display.textContent.slice(0, -1) || '0'; }
 
     function updateDisplay(value) {
-      if (display.textContent === "0" && value !== "." && !isNaN(value)) {
+      if (display.textContent === '0' && value !== ',') {
         display.textContent = value;
       } else {
         display.textContent += value;
       }
     }
 
+    function toEval(expr) { return expr.replace(/,/g, '.'); }
+    function fromEval(num) { return num.toString().replace(/\./g, ','); }
+
     function calculate() {
       try {
-        display.textContent = eval(display.textContent) || "0";
-      } catch {
-        display.textContent = "Erro";
-      }
-    }
-
-    function clearDisplay() {
-      display.textContent = "0";
-    }
-
-    function backspace() {
-      display.textContent = display.textContent.slice(0, -1) || "0";
+        const expr = toEval(display.textContent);
+        if (/[+\-*/.]$/.test(expr)) return;
+        const result = eval(expr);
+        const formatted = fromEval(result);
+        addToHistory(display.textContent + ' = ' + formatted);
+        display.textContent = formatted;
+      } catch { display.textContent = 'Erro'; }
     }
 
     function percent() {
-      try {
-        let expr = display.textContent;
-        let lastNumberMatch = expr.match(/(\d+(\.\d+)?)$/);
-        if (lastNumberMatch) {
-          let number = parseFloat(lastNumberMatch[0]);
-          let percentValue = number / 100;
-          display.textContent = expr.replace(/(\d+(\.\d+)?)$/, percentValue);
-        }
-      } catch {
-        display.textContent = "Erro";
+      let expr = display.textContent;
+      let match = expr.match(/(\d+(,\d+)?)$/);
+      if (match) {
+        let number = parseFloat(match[0].replace(',', '.'));
+        let percentValue = number / 100;
+        display.textContent = expr.replace(/(\d+(,\d+)?)$/, fromEval(percentValue));
       }
     }
 
+    function sqrt() {
+      let number = parseFloat(toEval(display.textContent));
+      if (number >= 0) {
+        const result = Math.sqrt(number);
+        const formatted = fromEval(result);
+        addToHistory('√(' + display.textContent + ') = ' + formatted);
+        display.textContent = formatted;
+      } else display.textContent = 'Erro';
+    }
+
+    // Botões
     buttons.forEach(btn => {
       btn.addEventListener('click', () => {
+        playSound();
         const value = btn.textContent;
-
-        if (btn.id === "clear") {
-          clearDisplay();
-        } else if (value === "=") {
-          calculate();
-        } else if (btn.id === "backspace") {
-          backspace();
-        } else if (value === "%") {
-          percent();
-        } else {
-          updateDisplay(value);
-        }
+        if (btn.id === 'clear') clearDisplay();
+        else if (btn.id === 'backspace') backspace();
+        else if (btn.id === 'sqrt') sqrt();
+        else if (btn.id === 'mute') { soundEnabled = !soundEnabled; btn.textContent = soundEnabled ? '🔊' : '🔇'; }
+        else if (btn.id === 'clearHistory') historyBox.innerHTML = '';
+        else if (value === '=') calculate();
+        else if (value === '%') percent();
+        else updateDisplay(value);
       });
     });
 
+    // Teclado físico
     document.addEventListener('keydown', (e) => {
-      if (!isNaN(e.key) || "+-*/.".includes(e.key)) {
-        updateDisplay(e.key);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        calculate();
-      } else if (e.key === "Backspace") {
-        backspace();
-      } else if (e.key.toUpperCase() === "C") {
-        clearDisplay();
-      } else if (e.key === "%") {
-        percent();
-      }
+      if (!isNaN(e.key) || '+-*/'.includes(e.key)) { updateDisplay(e.key); playSound(); }
+      else if (e.key === 'Enter') { e.preventDefault(); calculate(); playSound(); }
+      else if (e.key === 'Backspace') { backspace(); playSound(); }
+      else if (e.key.toUpperCase() === 'C') { clearDisplay(); playSound(); }
+      else if (e.key === '%') { percent(); playSound(); }
+      else if (e.key === '.' || e.key === ',') { updateDisplay(','); playSound(); }
+      else if (e.key.toLowerCase() === 'r') { sqrt(); playSound(); }
+      else if (e.key.toLowerCase() === 'm') { soundEnabled = !soundEnabled; document.getElementById('mute').textContent = soundEnabled ? '🔊' : '🔇'; }
     });
   </script>
 </body>
