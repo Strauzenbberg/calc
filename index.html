@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Calculadora Dark Azul</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #121212;
+      font-family: 'Segoe UI', sans-serif;
+      color: #fff;
+    }
+
+    .calculator {
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7);
+      width: 320px;
+    }
+
+    .display {
+      background: #000;
+      color: #0ff;
+      font-size: 2rem;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: right;
+      margin-bottom: 20px;
+      overflow-x: auto;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    button {
+      padding: 20px;
+      font-size: 1.2rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #0056b3; /* azul escuro padrão */
+      color: #fff;
+      transition: background 0.15s, transform 0.05s;
+    }
+
+    button:hover {
+      background: #007bff; /* azul claro no hover */
+    }
+
+    button:active {
+      background: #003d80; /* ainda mais escuro quando pressionado */
+      transform: scale(0.96);
+    }
+
+    .equal {
+      grid-row: span 2;
+      background: #004c99;
+    }
+
+    .equal:hover {
+      background: #339dff;
+    }
+
+    .equal:active {
+      background: #003366;
+    }
+
+    .zero {
+      grid-column: span 2;
+    }
+  </style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="display" id="display">0</div>
+    <div class="buttons">
+      <button id="clear">C</button>
+      <button id="backspace">⌫</button>
+      <button>%</button>
+      <button class="operator">/</button>
+
+      <button>7</button>
+      <button>8</button>
+      <button>9</button>
+      <button class="operator">*</button>
+
+      <button>4</button>
+      <button>5</button>
+      <button>6</button>
+      <button class="operator">-</button>
+
+      <button>1</button>
+      <button>2</button>
+      <button>3</button>
+      <button class="operator">+</button>
+
+      <button class="zero">0</button>
+      <button>.</button>
+      <button class="equal">=</button>
+    </div>
+  </div>
+
+  <script>
+    const display = document.getElementById('display');
+    const buttons = document.querySelectorAll('button');
+
+    function updateDisplay(value) {
+      if (display.textContent === "0" && value !== "." && !isNaN(value)) {
+        display.textContent = value;
+      } else {
+        display.textContent += value;
+      }
+    }
+
+    function calculate() {
+      try {
+        display.textContent = eval(display.textContent) || "0";
+      } catch {
+        display.textContent = "Erro";
+      }
+    }
+
+    function clearDisplay() {
+      display.textContent = "0";
+    }
+
+    function backspace() {
+      display.textContent = display.textContent.slice(0, -1) || "0";
+    }
+
+    function percent() {
+      try {
+        let expr = display.textContent;
+        let lastNumberMatch = expr.match(/(\d+(\.\d+)?)$/);
+        if (lastNumberMatch) {
+          let number = parseFloat(lastNumberMatch[0]);
+          let percentValue = number / 100;
+          display.textContent = expr.replace(/(\d+(\.\d+)?)$/, percentValue);
+        }
+      } catch {
+        display.textContent = "Erro";
+      }
+    }
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const value = btn.textContent;
+
+        if (btn.id === "clear") {
+          clearDisplay();
+        } else if (value === "=") {
+          calculate();
+        } else if (btn.id === "backspace") {
+          backspace();
+        } else if (value === "%") {
+          percent();
+        } else {
+          updateDisplay(value);
+        }
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!isNaN(e.key) || "+-*/.".includes(e.key)) {
+        updateDisplay(e.key);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        calculate();
+      } else if (e.key === "Backspace") {
+        backspace();
+      } else if (e.key.toUpperCase() === "C") {
+        clearDisplay();
+      } else if (e.key === "%") {
+        percent();
+      }
+    });
+  </script>
+</body>
+</html>
