@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Calculadora Dark Azul Animada</title>
+<title>Calculadora Premium</title>
 <style>
   body {
     background:#121212;
@@ -17,7 +17,7 @@
     background:#1e1e1e;
     padding:20px;
     border-radius:15px;
-    width:380px;
+    width:420px;
     color:#fff;
     box-shadow:0 0 20px rgba(0,0,0,0.7);
     display:flex;
@@ -52,12 +52,12 @@
   }
   .buttons {
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(5,1fr);
     gap:10px;
   }
   button {
     padding:18px;
-    font-size:1.1rem;
+    font-size:1.05rem;
     border:none;
     border-radius:10px;
     cursor:pointer;
@@ -80,11 +80,11 @@
     70% { transform: scale(1.05); }
     100% { transform: scale(1); }
   }
-  .equal { grid-row:span 2; background:#004c99; }
+  .equal { grid-row: span 2; background:#004c99; }
   .equal:hover { background:#339dff; }
-  .zero { grid-column:span 2; }
-  /* Fonte menor só para o Clear All do grid */
+  .zero { grid-column: span 2; }
   #clearHistoryBtn { font-size:0.9rem; }
+  .spacer { visibility:hidden; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -96,203 +96,270 @@
   </div>
 
   <div class="buttons">
-    <button id="clear">C</button><button id="backspace">⌫</button><button>%</button><button>/</button>
-    <button>7</button><button>8</button><button>9</button><button>*</button>
-    <button>4</button><button>5</button><button>6</button><button>-</button>
-    <button>1</button><button>2</button><button>3</button><button>+</button>
-    <button class="zero">0</button><button>,</button><button class="equal">=</button><button id="sqrt">√</button>
-    <button id="mute">🔇</button><button id="clearHistoryBtn">Clear All</button>
+    <!-- Linha da memória + clear all -->
+    <button id="MC">MC</button>
+    <button id="MR">MR</button>
+    <button id="Mplus">M+</button>
+    <button id="Mminus">M-</button>
+    <button id="clearHistoryBtn">Clear All</button>
+
+    <!-- Controles principais -->
+    <button id="clear">C</button>
+    <button id="backspace">⌫</button>
+    <button>%</button>
+    <button>/</button>
+    <button id="mute">🔇</button>
+
+    <!-- Linha 7-9, *, √ -->
+    <button>7</button>
+    <button>8</button>
+    <button>9</button>
+    <button>*</button>
+    <button id="sqrt">√</button>
+
+    <!-- Linha 4-6, -, = (começa aqui e ocupa 2 linhas) -->
+    <button>4</button>
+    <button>5</button>
+    <button>6</button>
+    <button>-</button>
+    <button class="equal">=</button>
+
+    <!-- Linha 1-3, + (o = continua ocupando a 5ª coluna) -->
+    <button>1</button>
+    <button>2</button>
+    <button>3</button>
+    <button>+</button>
+
+    <!-- Última linha: 0, vírgula e espaçadores para fechar a grade -->
+    <button class="zero">0</button>
+    <button>,</button>
+    <button class="spacer" aria-hidden="true" tabindex="-1"></button>
+    <button class="spacer" aria-hidden="true" tabindex="-1"></button>
   </div>
 </div>
 
 <script>
-const display = document.getElementById("display");
-const historyBox = document.getElementById("history");
-let soundEnabled = true;
-let justCalculated = false;
-let lastOperator = null;
-let lastOperand = null;
+  const display = document.getElementById("display");
+  const historyBox = document.getElementById("history");
 
-// Som via Web Audio API
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playSound(){
-  if(!soundEnabled) return;
-  if(audioCtx.state==="suspended") audioCtx.resume();
-  const osc=audioCtx.createOscillator();
-  const gain=audioCtx.createGain();
-  osc.type="sine"; osc.frequency.value=440;
-  gain.gain.value=0.1;
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  osc.start(); osc.stop(audioCtx.currentTime+0.08);
-}
+  let soundEnabled = true;
+  let justCalculated = false;        // se acabou de calcular (= ou √)
+  let lastOperator = null;           // para repetição de operação no "="
+  let lastOperand = null;
+  let memoryValue = 0;               // memória (MC/MR/M+/M-)
 
-function isOperator(ch){ return "+-*/".includes(ch); }
-function lastSegment(text){
-  const parts = text.split(/([+\-*/])/);
-  return parts[parts.length - 1] || "";
-}
-
-function updateDisplay(val){
-  const text = display.textContent;
-
-  // Após cálculo: número/',' começa novo; operador continua a partir do resultado
-  if (justCalculated) {
-    if (isOperator(val)) {
-      display.textContent = text + val;
-    } else if (val === ",") {
-      display.textContent = "0,";
-    } else {
-      display.textContent = val;
-    }
-    justCalculated = false;
-    return;
+  // Som via Web Audio API
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSound(){
+    if(!soundEnabled) return;
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 440;
+    gain.gain.value = 0.1;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
   }
 
-  if (text === "Erro") {
-    if (val === ",") { display.textContent = "0,"; }
-    else if (isOperator(val)) { display.textContent = "0" + val; }
-    else { display.textContent = val; }
-    return;
+  function isOperator(ch){ return "+-*/".includes(ch); }
+  function lastSegment(text){
+    const parts = text.split(/([+\-*/])/);
+    return parts[parts.length - 1] || "";
   }
 
-  // Evita duas vírgulas no mesmo número
-  if (val === ",") {
-    if (lastSegment(text).includes(",")) return;
-    if (text === "0") { display.textContent = "0,"; return; }
-  }
+  function updateDisplay(val){
+    const text = display.textContent;
 
-  // Substitui operador se o último char já for operador
-  const last = text.slice(-1);
-  if (isOperator(val) && isOperator(last)) {
-    display.textContent = text.slice(0, -1) + val;
-    return;
-  }
-
-  // Remove zero à esquerda em novo número
-  if (text === "0" && !isOperator(val) && val !== ",") {
-    display.textContent = val;
-    return;
-  }
-
-  display.textContent += val;
-}
-
-function toEval(expr){ return expr.replace(/,/g,"."); }
-function fromEval(num){ return num.toString().replace(/\./g,","); }
-
-function calculate(){
-  try{
-    const expr = toEval(display.textContent);
-    if (/[+\-*/.]$/.test(expr)) return;
-
-    let result;
-    if (justCalculated && lastOperator && lastOperand !== null) {
-      // Repetir última operação sobre o resultado atual
-      const current = parseFloat(display.textContent.replace(",", "."));
-      result = eval(current + lastOperator + lastOperand);
-    } else {
-      // Cálculo normal e captura da última operação
-      result = eval(expr);
-      const match = expr.match(/([+\-*/])([^+\-*/]+)$/);
-      if (match) {
-        lastOperator = match[1];
-        lastOperand = parseFloat(match[2]);
+    // Após cálculo: número/',' começa novo; operador continua do resultado
+    if (justCalculated) {
+      if (isOperator(val)) {
+        display.textContent = text + val;
+      } else if (val === ",") {
+        display.textContent = "0,";
       } else {
-        lastOperator = null;
-        lastOperand = null;
+        display.textContent = val;
       }
+      justCalculated = false;
+      return;
     }
 
-    if (result === undefined || result === null || isNaN(result)) {
-      display.textContent = "Erro"; justCalculated=false; return;
+    if (text === "Erro") {
+      if (val === ",") display.textContent = "0,";
+      else if (isOperator(val)) display.textContent = "0" + val;
+      else display.textContent = val;
+      return;
     }
-    const formatted = fromEval(result);
-    addToHistory(display.textContent + " = " + formatted);
-    display.textContent = formatted;
-    justCalculated = true;
-  } catch {
-    display.textContent = "Erro";
-    justCalculated = false;
+
+    // Evitar duas vírgulas no mesmo número
+    if (val === ",") {
+      if (lastSegment(text).includes(",")) return;
+      if (text === "0") { display.textContent = "0,"; return; }
+    }
+
+    // Substituir operador se o último char for operador
+    const last = text.slice(-1);
+    if (isOperator(val) && isOperator(last)) {
+      display.textContent = text.slice(0, -1) + val;
+      return;
+    }
+
+    // Remover zero à esquerda em novo número
+    if (text === "0" && !isOperator(val) && val !== ",") {
+      display.textContent = val;
+      return;
+    }
+
+    display.textContent += val;
   }
-}
 
-function clearDisplay(){
-  display.textContent = "0";
-  justCalculated = false;
-  lastOperator = null;
-  lastOperand = null;
-}
+  function toEval(expr){ return expr.replace(/,/g,"."); }
+  function fromEval(num){ return num.toString().replace(/\./g,","); }
 
-function backspace(){
-  if (justCalculated) { clearDisplay(); return; }
-  display.textContent = display.textContent.slice(0, -1) || "0";
-}
+  function calculate(){
+    try{
+      const expr = toEval(display.textContent);
+      if (/[+\-*/.]$/.test(expr)) return;
 
-function percent(){
-  const n = parseFloat(display.textContent.replace(",", "."));
-  if (!isNaN(n)) {
-    display.textContent = (n/100).toString().replace(".", ",");
-    justCalculated = false;
+      let result;
+      if (justCalculated && lastOperator && lastOperand !== null) {
+        // Repetir última operação sobre o resultado atual
+        const current = parseFloat(display.textContent.replace(",", "."));
+        result = eval(current + lastOperator + lastOperand);
+      } else {
+        // Cálculo normal e captura da última operação
+        result = eval(expr);
+        const match = expr.match(/([+\-*/])([^+\-*/]+)$/);
+        if (match) {
+          lastOperator = match[1];
+          lastOperand = parseFloat(match[2]);
+        } else {
+          lastOperator = null;
+          lastOperand = null;
+        }
+      }
+
+      if (result === undefined || result === null || isNaN(result)) {
+        display.textContent = "Erro";
+        justCalculated = false;
+        return;
+      }
+
+      const formatted = fromEval(result);
+      addToHistory(display.textContent + " = " + formatted);
+      display.textContent = formatted;
+      justCalculated = true;
+    } catch {
+      display.textContent = "Erro";
+      justCalculated = false;
+    }
   }
-}
 
-function sqrt(){
-  let n = parseFloat(display.textContent.replace(",", "."));
-  if (!isNaN(n) && n >= 0) {
-    const res = Math.sqrt(n);
-    const formatted = res.toString().replace(".", ",");
-    addToHistory("√(" + display.textContent + ") = " + formatted);
-    display.textContent = formatted;
-    justCalculated = true;
-    // Após sqrt, não faz sentido repetir operação anterior
+  function clearDisplay(){
+    display.textContent = "0";
+    justCalculated = false;
     lastOperator = null;
     lastOperand = null;
-  } else {
-    display.textContent = "Erro";
-    justCalculated = false;
   }
-}
 
-function clearAll(){
-  historyBox.innerHTML = "";
-  clearDisplay();
-}
+  function backspace(){
+    if (justCalculated) { clearDisplay(); return; }
+    display.textContent = display.textContent.slice(0, -1) || "0";
+  }
 
-function addToHistory(entry){
-  const div=document.createElement("div");
-  div.textContent=entry;
-  historyBox.prepend(div);
-}
+  function percent(){
+    const n = parseFloat(display.textContent.replace(",", "."));
+    if (!isNaN(n)) {
+      display.textContent = (n/100).toString().replace(".", ",");
+      justCalculated = false;
+    }
+  }
 
-// Botões
-document.querySelectorAll("button").forEach(btn=>{
-  btn.addEventListener("click",()=>{
-    playSound();
-    const v=btn.textContent;
-    if(btn.id==="clear") clearDisplay();
-    else if(btn.id==="backspace") backspace();
-    else if(btn.id==="sqrt") sqrt();
-    else if(btn.id==="mute"){ soundEnabled=!soundEnabled; btn.textContent=soundEnabled?"🔊":"🔇"; }
-    else if(btn.id==="clearHistoryBtn"){ clearAll(); }
-    else if(v==="=") calculate();
-    else if(v==="%") percent();
-    else updateDisplay(v);
+  function sqrt(){
+    let n = parseFloat(display.textContent.replace(",", "."));
+    if (!isNaN(n) && n >= 0) {
+      const res = Math.sqrt(n);
+      const formatted = res.toString().replace(".", ",");
+      addToHistory("√(" + display.textContent + ") = " + formatted);
+      display.textContent = formatted;
+      justCalculated = true;
+      // Após sqrt, não repetir operação anterior
+      lastOperator = null;
+      lastOperand = null;
+    } else {
+      display.textContent = "Erro";
+      justCalculated = false;
+    }
+  }
+
+  function clearAll(){
+    historyBox.innerHTML = "";
+    clearDisplay();
+  }
+
+  function addToHistory(entry){
+    const div = document.createElement("div");
+    div.textContent = entry;
+    historyBox.prepend(div);
+  }
+
+  // Memória
+  function memoryClear(){ memoryValue = 0; }
+  function memoryRecall(){
+    display.textContent = fromEval(memoryValue);
+    justCalculated = true; // próximo dígito inicia nova entrada
+  }
+  function memoryAdd(){
+    const n = parseFloat(display.textContent.replace(",", ".") || "0");
+    if (!isNaN(n)) memoryValue += n;
+  }
+  function memorySubtract(){
+    const n = parseFloat(display.textContent.replace(",", ".") || "0");
+    if (!isNaN(n)) memoryValue -= n;
+  }
+
+  // Clique nos botões
+  document.querySelectorAll("button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      playSound();
+      const v = btn.textContent;
+
+      if (btn.id === "clear") clearDisplay();
+      else if (btn.id === "backspace") backspace();
+      else if (btn.id === "sqrt") sqrt();
+      else if (btn.id === "mute"){ soundEnabled = !soundEnabled; btn.textContent = soundEnabled ? "🔊" : "🔇"; }
+      else if (btn.id === "clearHistoryBtn"){ clearAll(); }
+      else if (btn.id === "MC") memoryClear();
+      else if (btn.id === "MR") memoryRecall();
+      else if (btn.id === "Mplus") memoryAdd();
+      else if (btn.id === "Mminus") memorySubtract();
+      else if (v === "=") calculate();
+      else if (v === "%") percent();
+      else updateDisplay(v);
+    });
   });
-});
 
-// Teclado
-document.addEventListener("keydown",(e)=>{
-  const k = e.key;
-  if(!isNaN(k)||"+-*/".includes(k)) { updateDisplay(k); playSound(); }
-  else if(k==="Enter"){ e.preventDefault(); calculate(); playSound(); }
-  else if(k==="Backspace"){ backspace(); playSound(); }
-  else if(k.toUpperCase()==="C"){ clearDisplay(); playSound(); }
-  else if(k==="%"){ percent(); playSound(); }
-  else if(k==="."||k===","){ updateDisplay(","); playSound(); }
-  else if(k.toLowerCase()==="r"){ sqrt(); playSound(); }
-  else if(k.toLowerCase()==="m"){ soundEnabled=!soundEnabled; document.getElementById("mute").textContent=soundEnabled?"🔊":"🔇"; }
-  else if(k.toLowerCase()==="h" || k==="Escape"){ clearAll(); }
-});
+  // Teclado físico
+  document.addEventListener("keydown",(e)=>{
+    const k = e.key;
+
+    if (!isNaN(k) || "+-*/".includes(k)) { updateDisplay(k); playSound(); }
+    else if (k === "Enter") { e.preventDefault(); calculate(); playSound(); }
+    else if (k === "Backspace") { backspace(); playSound(); }
+    else if (k.toUpperCase() === "C") { clearDisplay(); playSound(); }
+    else if (k === "%") { percent(); playSound(); }
+    else if (k === "." || k === ",") { updateDisplay(","); playSound(); }
+    else if (k.toLowerCase() === "r") { sqrt(); playSound(); }
+    else if (k.toLowerCase() === "m") { soundEnabled = !soundEnabled; document.getElementById("mute").textContent = soundEnabled ? "🔊" : "🔇"; }
+    else if (k.toLowerCase() === "h" || k === "Escape") { clearAll(); }
+    // Atalhos simples de memória (opcionais):
+    else if (k.toLowerCase() === "q") { memoryClear(); }     // MC
+    else if (k.toLowerCase() === "w") { memoryRecall(); }    // MR
+    else if (k.toLowerCase() === "e") { memoryAdd(); }       // M+
+    else if (k.toLowerCase() === "a") { memorySubtract(); }  // M-
+  });
 </script>
 </body>
 </html>
